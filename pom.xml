@@ -4,18 +4,19 @@
     <groupId>MyPerf4J</groupId>
     <artifactId>MyPerf4J</artifactId>
     <packaging>pom</packaging>
-    <version>1.7.0</version>
+    <version>2.0.2</version>
     <modules>
         <module>MyPerf4J-Core</module>
         <module>MyPerf4J-ASM</module>
         <module>MyPerf4J-Base</module>
-        <module>MyPerf4J-Extension</module>
     </modules>
     <name>MyPerf4J</name>
-    <url>http://maven.apache.org</url>
 
     <properties>
         <asm-version>6.1.1</asm-version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.7</maven.compiler.source>
+        <maven.compiler.target>1.7</maven.compiler.target>
     </properties>
 
     <dependencyManagement>
@@ -33,9 +34,10 @@
             </dependency>
 
             <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-                <version>1.7.25</version>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.11</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -113,6 +115,22 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.eluder.coveralls</groupId>
+                <artifactId>coveralls-maven-plugin</artifactId>
+                <version>4.3.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>cobertura-maven-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <format>xml</format>
+                    <maxmem>256m</maxmem>
+                    <!-- aggregated reports for multi-module projects -->
+                    <aggregate>true</aggregate>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -1,22 +1,22 @@
 package cn.myperf4j.core;
 
-import cn.myperf4j.base.MethodTag;
-import cn.myperf4j.base.PerfStats;
-import cn.myperf4j.base.PerfStatsProcessor;
-import cn.myperf4j.core.config.ProfilingConfig;
-import cn.myperf4j.core.config.ProfilingFilter;
-import cn.myperf4j.core.constant.PropertyKeys;
-import cn.myperf4j.core.constant.PropertyValues;
-import cn.myperf4j.core.util.IOUtils;
-import cn.myperf4j.core.util.Logger;
-import cn.myperf4j.core.config.MyProperties;
-import cn.myperf4j.core.util.PerfStatsCalculator;
+import cn.myperf4j.base.config.ProfilingConfig;
+import cn.myperf4j.base.config.ProfilingFilter;
+import cn.myperf4j.base.constant.PropertyKeys;
+import cn.myperf4j.base.constant.PropertyValues;
+import cn.myperf4j.base.metric.processor.*;
+import cn.myperf4j.base.util.ExecutorManager;
+import cn.myperf4j.base.util.IOUtils;
+import cn.myperf4j.base.util.Logger;
+import cn.myperf4j.base.config.MyProperties;
+import cn.myperf4j.core.recorder.AbstractRecorderMaintainer;
+import cn.myperf4j.core.scheduler.JvmMetricsScheduler;
+import cn.myperf4j.base.Scheduler;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class AbstractBootstrap {
 
-    protected AsyncPerfStatsProcessor processor;
+    protected MethodMetricsProcessor processor;
 
     protected AbstractRecorderMaintainer maintainer;
 
@@ -95,6 +95,11 @@ public abstract class AbstractBootstrap {
             return false;
         }
 
+        if (!initScheduler()) {
+            Logger.error("AbstractBootstrap initScheduler() FAILURE!!!");
+            return false;
+        }
+
         if (!initOther()) {
             Logger.error("AbstractBootstrap initOther() FAILURE!!!");
             return false;
@@ -122,18 +127,45 @@ public abstract class AbstractBootstrap {
     private boolean initProfilingConfig() {
         try {
             ProfilingConfig config = ProfilingConfig.getInstance();
-            config.setPerStatsProcessor(MyProperties.getStr(PropertyKeys.PERF_STATS_PROCESSOR, PropertyValues.DEFAULT_PERF_STATS_PROCESSOR));
+            String appName = MyProperties.getStr(PropertyKeys.APP_NAME);
+            if (appName == null || appName.isEmpty()) {
+                throw new IllegalArgumentException("AppName is required!!!");
+            }
+            config.setAppName(appName);
+
+            config.setMetricsProcessorType(MyProperties.getInt(PropertyKeys.METRICS_PROCESS_TYPE, PropertyValues.METRICS_PROCESS_TYPE_STDOUT));
+            if (config.getMetricsProcessorType() == PropertyValues.METRICS_PROCESS_TYPE_STDOUT) {
+                config.setMethodMetricsFile(PropertyValues.STDOUT_FILE);
+                config.setClassMetricsFile(PropertyValues.STDOUT_FILE);
+                config.setGcMetricsFile(PropertyValues.STDOUT_FILE);
+                config.setMemoryMetricsFile(PropertyValues.STDOUT_FILE);
+            } else {
+                config.setMethodMetricsFile(MyProperties.getStr(PropertyKeys.METHOD_METRICS_FILE, PropertyValues.DEFAULT_METRICS_FILE));
+                config.setClassMetricsFile(MyProperties.getStr(PropertyKeys.CLASS_METRICS_FILE, PropertyValues.NULL_FILE));
+                config.setGcMetricsFile(MyProperties.getStr(PropertyKeys.GC_METRICS_FILE, PropertyValues.NULL_FILE));
+                config.setMemoryMetricsFile(MyProperties.getStr(PropertyKeys.MEM_METRICS_FILE, PropertyValues.NULL_FILE));
+            }
+            config.setThreadMetricsFile(MyProperties.getStr(PropertyKeys.THREAD_METRICS_FILE, PropertyValues.NULL_FILE));
+            config.setLogRollingTimeUnit(MyProperties.getStr(PropertyKeys.LOG_ROLLING_TIME_TIME_UNIT, PropertyValues.LOG_ROLLING_TIME_DAILY));
+
             config.setRecorderMode(MyProperties.getStr(PropertyKeys.RECORDER_MODE, PropertyValues.RECORDER_MODE_ROUGH));
             config.setBackupRecorderCount(MyProperties.getInt(PropertyKeys.BACKUP_RECORDERS_COUNT, PropertyValues.MIN_BACKUP_RECORDERS_COUNT));
-            config.setMilliTimeSlice(MyProperties.getLong(PropertyKeys.MILL_TIME_SLICE, PropertyValues.DEFAULT_TIME_SLICE));
+            config.setMilliTimeSlice(MyProperties.getLong(PropertyKeys.MILLI_TIME_SLICE, PropertyValues.DEFAULT_TIME_SLICE));
+            config.setShowMethodParams(MyProperties.getBoolean(PropertyKeys.SHOW_METHOD_PARAMS, false));
+
+            String includePackages = MyProperties.getStr(PropertyKeys.FILTER_INCLUDE_PACKAGES, "");
+            if (includePackages == null || includePackages.isEmpty()) {
+                throw new IllegalArgumentException("IncludePackages is required!!!");
+            }
+            config.setIncludePackages(includePackages);
+
             config.setExcludePackages(MyProperties.getStr(PropertyKeys.FILTER_EXCLUDE_PACKAGES, ""));
-            config.setIncludePackages(MyProperties.getStr(PropertyKeys.FILTER_INCLUDE_PACKAGES, ""));
             config.setPrintDebugLog(MyProperties.getBoolean(PropertyKeys.DEBUG_PRINT_DEBUG_LOG, false));
             config.setExcludeMethods(MyProperties.getStr(PropertyKeys.FILTER_EXCLUDE_METHODS, ""));
             config.setExcludePrivateMethod(MyProperties.getBoolean(PropertyKeys.EXCLUDE_PRIVATE_METHODS, true));
             config.setExcludeClassLoaders(MyProperties.getStr(PropertyKeys.FILTER_INCLUDE_CLASS_LOADERS, ""));
             config.setProfilingParamsFile(MyProperties.getStr(PropertyKeys.PROFILING_PARAMS_FILE_NAME, ""));
-            config.setCommonProfilingParams(MyProperties.getInt(PropertyKeys.PROFILING_TIME_THRESHOLD, 500), MyProperties.getInt(PropertyKeys.PROFILING_OUT_THRESHOLD_COUNT, 50));
+            config.setCommonProfilingParams(MyProperties.getInt(PropertyKeys.PROFILING_TIME_THRESHOLD, 1000), MyProperties.getInt(PropertyKeys.PROFILING_OUT_THRESHOLD_COUNT, 16));
             return true;
         } catch (Exception e) {
             Logger.error("AbstractBootstrap.initProfilingConfig()", e);
@@ -209,23 +241,10 @@ public abstract class AbstractBootstrap {
 
     private boolean initPerfStatsProcessor() {
         try {
-            ProfilingConfig config = ProfilingConfig.getInstance();
-            String className = config.getPerStatsProcessor();
-            if (className == null || className.isEmpty()) {
-                Logger.error("AbstractBootstrap.initPerfStatsProcessor() MyPerf4J.PSP NOT FOUND!!!");
-                return false;
-            }
-
-            Class<?> clazz = AbstractBootstrap.class.getClassLoader().loadClass(className);
-            Object obj = clazz.newInstance();
-            if (!(obj instanceof PerfStatsProcessor)) {
-                Logger.error("AbstractBootstrap.initPerfStatsProcessor() className is not correct!!!");
-                return false;
-            }
-
-            processor = AsyncPerfStatsProcessor.initial((PerfStatsProcessor) obj);
+            int processorType = ProfilingConfig.getInstance().getMetricsProcessorType();
+            processor = MetricsProcessorFactory.getMethodMetricsProcessor(processorType);
             return true;
-        } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+        } catch (Exception e) {
             Logger.error("AbstractBootstrap.initPerfStatsProcessor()", e);
         }
         return false;
@@ -293,26 +312,7 @@ public abstract class AbstractBootstrap {
                 public void run() {
                     Logger.info("ENTER ShutdownHook...");
                     try {
-                        MethodTagMaintainer methodTagMaintainer = MethodTagMaintainer.getInstance();
-                        Recorders recorders = maintainer.getRecorders();
-                        List<PerfStats> perfStatsList = new ArrayList<>(recorders.size());
-                        int actualSize = methodTagMaintainer.getMethodTagCount();
-                        for (int i = 0; i < actualSize; ++i) {
-                            Recorder recorder = recorders.getRecorder(i);
-                            if (recorder == null || !recorder.hasRecord()) {
-                                continue;
-                            }
-
-                            MethodTag methodTag = methodTagMaintainer.getMethodTag(recorder.getMethodTagId());
-                            perfStatsList.add(PerfStatsCalculator.calPerfStats(recorder, methodTag, recorders.getStartTime(), recorders.getStopTime()));
-                        }
-                        processor.process(perfStatsList, actualSize, recorders.getStartTime(), recorders.getStopTime());
-
-                        ThreadPoolExecutor executor = processor.getExecutor();
-                        executor.shutdown();
-                        executor.awaitTermination(5, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        Logger.error("", e);
+                        ExecutorManager.stopAll(6, TimeUnit.SECONDS);
                     } finally {
                         Logger.info("EXIT ShutdownHook...");
                     }
@@ -323,6 +323,30 @@ public abstract class AbstractBootstrap {
             Logger.error("AbstractBootstrap.initShutDownHook()", e);
         }
         return false;
+    }
+
+    private boolean initScheduler() {
+        try {
+            List<Scheduler> schedulers = new ArrayList<>(2);
+            schedulers.add(createJVMMetricsScheduler());
+            schedulers.add(maintainer);
+
+            LightWeightScheduler.initScheduleTask(schedulers, ProfilingConfig.getInstance().getMilliTimeSlice());
+
+            return true;
+        } catch (Exception e) {
+            Logger.error("AbstractBootstrap.initScheduler()", e);
+        }
+        return false;
+    }
+
+    private Scheduler createJVMMetricsScheduler() {
+        int processorType = ProfilingConfig.getInstance().getMetricsProcessorType();
+        JvmClassMetricsProcessor classProcessor = MetricsProcessorFactory.getClassMetricsProcessor(processorType);
+        JvmGCMetricsProcessor gcProcessor = MetricsProcessorFactory.getGCMetricsProcessor(processorType);
+        JvmMemoryMetricsProcessor memoryProcessor = MetricsProcessorFactory.getMemoryMetricsProcessor(processorType);
+        JvmThreadMetricsProcessor threadProcessor = MetricsProcessorFactory.getThreadMetricsProcessor(processorType);
+        return new JvmMetricsScheduler(classProcessor, gcProcessor, memoryProcessor, threadProcessor);
     }
 
     public abstract boolean initOther();

@@ -1,10 +1,11 @@
 package cn.myperf4j.asm.aop;
 
 import cn.myperf4j.asm.ASMRecorderMaintainer;
+import cn.myperf4j.asm.utils.TypeDescUtils;
 import cn.myperf4j.base.MethodTag;
-import cn.myperf4j.core.AbstractRecorderMaintainer;
+import cn.myperf4j.core.recorder.AbstractRecorderMaintainer;
 import cn.myperf4j.core.MethodTagMaintainer;
-import cn.myperf4j.core.config.ProfilingConfig;
+import cn.myperf4j.base.config.ProfilingConfig;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.AdviceAdapter;
@@ -37,14 +38,15 @@ public class ProfilingMethodVisitor extends AdviceAdapter {
                                   String innerClassName) {
         super(ASM5, mv, access, name, desc);
         this.methodName = name;
-        this.methodTagId = methodTagMaintainer.addMethodTag(getMethodTag(innerClassName, name));
+        this.methodTagId = methodTagMaintainer.addMethodTag(getMethodTag(innerClassName, name, desc));
         this.innerClassName = innerClassName;
     }
 
-    private MethodTag getMethodTag(String innerClassName, String methodName) {
+    private MethodTag getMethodTag(String innerClassName, String methodName, String desc) {
         int idx = innerClassName.replace('.', '/').lastIndexOf('/');
-        String simpleClassName = innerClassName.substring(idx + 1, innerClassName.length());
-        return MethodTag.getInstance(simpleClassName, methodName);
+        String simpleClassName = innerClassName.substring(idx + 1);
+        String methodParamDesc = profilingConfig.isShowMethodParams() ? "(" + TypeDescUtils.getMethodParamsDesc(desc) + ")" : "";
+        return MethodTag.getInstance(simpleClassName, methodName, methodParamDesc);
     }
 
     @Override

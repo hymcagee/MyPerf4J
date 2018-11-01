@@ -1,115 +1,145 @@
-# MyPerf4J
-An extremely fast performance monitoring and statistics for Java code. Inspired by [perf4j](https://github.com/perf4j/perf4j) and [TProfiler](https://github.com/alibaba/TProfiler).
-Committed to becoming a performance monitoring and statistics tool that can be used for a long time in a production environment!
+[简体中文](./README.md) | English
+
+<h1 align="center">MyPerf4J</h1>
+
+<div align="center">
+
+A high performance, non-intrusive Java performance monitoring and statistical tool designed for high-concurrency, low-latency applications. 
+
+[![GitHub (pre-)release](https://img.shields.io/github/release/ThinkpadNC5/MyPerf4J/all.svg)](https://github.com/ThinkpadNC5/MyPerf4J) [![Build Status](https://travis-ci.com/ThinkpadNC5/MyPerf4J.svg?branch=develop)](https://travis-ci.com/ThinkpadNC5/MyPerf4J) [![Coverage Status](https://coveralls.io/repos/github/ThinkpadNC5/MyPerf4J/badge.svg?branch=develop)](https://coveralls.io/github/ThinkpadNC5/MyPerf4J?branch=develop) [![GitHub issues](https://img.shields.io/github/issues/ThinkpadNC5/MyPerf4J.svg)](https://github.com/ThinkpadNC5/MyPerf4J/issues) [![GitHub closed issues](https://img.shields.io/github/issues-closed/ThinkpadNC5/MyPerf4J.svg)](https://github.com/ThinkpadNC5/MyPerf4J/issues?q=is%3Aissue+is%3Aclosed) [![GitHub](https://img.shields.io/github/license/ThinkpadNC5/MyPerf4J.svg)](./LICENSE)
+
+</div>
+
+## Features
+*  High performance: Very low performance consumption, only **73 nano seconds** per record, can be used in production environment for a long time.
+*  No intrusion: Using **JavaAgent** mode, no intrusion to the application, no need to modify the application code.
+*  Low memory: With memory multiplexing, only a small number of temporary objects are generated throughout the life cycle, and the GC of the application is not affected.
+*  High precision: Using nanoseconds to calculate response time.
+*  Real-time: Supports second level monitoring, minimum **1 second**!
+
+## Usage scenarios
+* Quickly locate performance bottlenecks for Java applications in a development environment
+* Long-term monitoring of performance metrics for Java applications in a production environment
 
 ## Multilingual document
-* English [WIKI](https://github.com/ThinkpadNC5/MyPerf4J/wiki/English-Doc)
-* 中文 [README](https://github.com/ThinkpadNC5/MyPerf4J/blob/develop/README.CN.md) [WIKI](https://github.com/ThinkpadNC5/MyPerf4J/wiki/Chinese-Doc)
+* [English Doc](https://github.com/ThinkpadNC5/MyPerf4J/wiki/English-Doc)
+* [中文文档](https://github.com/ThinkpadNC5/MyPerf4J/wiki/Chinese-Doc) 
 
+## What does it monitor?
+MyPerf4J collects dozens of metrics per application. All these metrics are collected and visualized in real-time.
 
-## Background
-* I need a program that can measure the response time of method.
-* The existing statistics of [perf4j](https://github.com/perf4j/perf4j) cannot meet my needs.
+This is a list of what it currently monitors:
+* **[Method](https://grafana.com/dashboards/7766)**<br/>
+RPS, Count, Avg, Min, Max, StdDev, TP50, TP90, TP95, TP99, TP999, TP9999, TP99999, TP100
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-Method_Show_Operation.gif)
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-Method_Just_Record.gif)
 
-## Requirements
-* Statistics on the performance indicators of the method such as RPS, Avg, Min, Max, StdDev, TP50, TP90, TP95, TP99, TP999 and TP9999, etc.
-* It can be configured by properties.
-* Does not take up too much memory, does not affect the normal response of the program.
-* The processing of performance indicators can be customized, for example: log collection, reporting to log collection services, etc.
+* **[JVM Thread](https://grafana.com/dashboards/7778)**<br/>
+TotalStarted, Runnable, Blocked, Waiting, TimedWaiting, Terminated, Active, Peak, Daemon, New
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-JVM-Thread_Just_Record.gif)
 
-## Memory
-* Prerequisites
-    - There are 1024 interfaces on the service that need to be monitored.
-    - Most of the response time of each interface is within 300ms, and there are 100 different response times larger than 300ms.
-    - Non-core data structures occupy 2MB.
-* Rough Mode
-    - Only record requests with response time less than 1000ms.
-    - 2 * 1024 * (1000 * 4B) + 2MB ≈ 10MB
-* Accurate Mode
-    - Record all response times.
-    - 2 * 1024 * (300 * 4B + 100 * 90B) + 2MB ≈ 22MB 
+* **[JVM Memory](https://grafana.com/dashboards/7775)**<br/>
+HeapInit, HeapUsed, HeapCommitted, HeapMax, NonHeapInit, NonHeapUsed, NonHeapCommitted, NonHeapMax
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-JVM-Memory_Just_Record.gif)
 
-## Benchmark
-* Test Platform
-    - OS: macOS High Sierra 10.13.3
-    - JDK: 1.8.0_161
-    - JVM options: -server -Xmx4G -Xms4G -Xmn2G
-    - CPU: Intel(R) Core(TM) i7-7920HQ CPU@3.10GHz
+* **[JVM GC](https://grafana.com/dashboards/7772)**<br/>
+CollectCount, CollectTime
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-JVM-GC_Just_Record.gif)
 
-* Test way
-    - Run empty methods.
-    - In order to avoid the performance degradation caused by the high competition of multiple threads due to the high execution speed of the empty method, eight empty methods are executed by polling, and then the RPS of the eight methods is added to obtain the result.
-    - The time slice is 10s, each press pauses for 20s, and executes `System.gc();`  
+* **[JVM Class](https://grafana.com/dashboards/7769)**<br/>
+Total, Loaded, Unloaded
+![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J-InfluxDB-JVM-Class_Just_Record.gif)
 
-* MyPerf4J-ASM
+> Want to know how to achieve the above effect? Please start the application according to the description of [Quick Start](https://github.com/ThinkpadNC5/MyPerf4J/blob/develop/README.EN.md#quick-start), and then follow the instructions in [here](https://github.com/ThinkpadNC5/MyPerf4J/wiki/InfluxDB) to install and configure.
+ 
+## Quick start
+MyPerf4J adopts JavaAgent configuration mode, **transparent** access application, and the application code is completely **no-intrusive**.
+
+### Build
+* git clone git@github.com:ThinkpadNC5/MyPerf4J.git
+* mvn clean package
+* Rename MyPerf4J-ASM-${MyPerf4J-version}.jar to MyPerf4J-ASM.jar
+
+> If you are using JDK 7 or higher, you can try to download [MyPerf4J-ASM.jar](https://github.com/ThinkpadNC5/Objects/blob/master/MyPerf4J-ASM-2.0.2.jar?raw=true) directly.
+
+### Configure
+Add the following two parameters to the JVM startup parameters
+> -javaagent:/your/path/to/MyPerf4J-ASM.jar
+> -DMyPerf4JPropFile=/your/path/to/myPerf4J.properties
+
+Among them, the configuration of `MyPerf4JPropFile` is as follows:
+
+```
+#Application name
+AppName=MyPerf4JTest
+
+#Configure MetricsProcessors type 0:Output to stdout.log in a standard formatted structure 1:Output to disk in standard formatted structure  2:Output to disk in InfluxDB LineProtocol format
+MetricsProcessorType=1
+
+#Config metrics log file, option
+MethodMetricsFile=/data/logs/MyPerf4J/method_metrics.log
+#ClassMetricsFile=/data/logs/MyPerf4J/class_metrics.log
+#GCMetricsFile=/data/logs/MyPerf4J/gc_metrics.log
+#MemMetricsFile=/data/logs/MyPerf4J/memory_metrics.log
+#ThreadMetricsFile=/data/logs/MyPerf4J/thread_metrics.log
+
+#Configure the log file scrolling interval, which has three values: MINUTELY, HOURLY, and DAILY.
+LogRollingTimeUnit=HOURLY
+
+#Configure the number of backup Recorders. The default is 1, the minimum is 1, and the maximum is 8. When you need to count a large number of method performance data in a smaller MillTimeSlice, you can configure a larger number.
+BackupRecordersCount=1
     
-    | Threads | Number of loops per thread | RPS |
-    |-------|-----|------|
-    |1|1000000000|13815816|
-    |2|1000000000|16199712|
-    |4|1000000000|33060632|
-    |8|1000000000|55981416|
+#configure RecordMode, accurate/rough
+RecorderMode=accurate
+    
+#configure TimeSlice, time unit: ms, min:1s, max:600s
+MilliTimeSlice=60000
 
-* Summary
-    - From the benchmark results
-        - MyPerf4J-ASM can support 13.81 million method calls per second in a single thread. The average time per method call is 72.3ns, which can meet the requirements of most people, and does not affect the response time of the program itself.
-    - Reason for high performance
-        - MyPerf4J-ASM modifies the bytecode of the class through the ASM framework, inserting two lines of methods before and after the method, without generating redundant objects, and not triggering any GC in the whole process of the benchmark (except for the `System.gc();` executed in the code).
+#config show method params type
+ShowMethodParams=true
+    
+#configure packages, separated with ';'
+IncludePackages=cn.perf4j;org.myperf4j
+    
+#configure packages, separated with ';'
+ExcludePackages=org.spring;
+    
+#configure methods, separated with ';'
+ExcludeMethods=equals;hash
+    
+#true/false
+ExcludePrivateMethod=true
+    
+#General method execution time threshold in ms
+ProfilingTimeThreshold=1000
+    
+#The number of times the method execution time threshold is exceeded in a time slice, valid only when RecorderMode=accurate
+ProfilingOutThresholdCount=10
+```
 
-## Getting Started
-* Add VM options:  `-javaagent:/your/path/to/MyPerf4J-ASM-${MyPerf4J-version}.jar`
-* Add VM options: `-DMyPerf4JPropFile=/your/path/to/myPerf4J.properties`, and add properties in `/your/path/to/myPerf4J.properties`
+### Run
+* The output is to /data/logs/MyPerf4J/method_metrics.log:
 
     ```
-    #configurePerfStatsProcessor，can be configured without for configuration of custom statistics
-    #PerfStatsProcessor=cn.perf4j.demo.MyPerfStatsProcessor
-        
-    #Configure the number of backup Recorders. The default is 1, the minimum is 1, and the maximum is 8. When you need to count a large number of method performance data in a smaller MillTimeSlice, you can configure a larger number.
-    BackupRecordersCount=1
-    
-    #configure RecordMode，accurate/rough
-    RecorderMode=accurate
-    
-    #configure TimeSlice，time unit: ms，min:1s，max:600s
-    MillTimeSlice=60000
-    
-    #configure packages，separated with ';'
-    IncludePackages=cn.perf4j;org.myperf4j
-    
-    #configure packages，separated with ';'
-    ExcludePackages=org.spring;
-    
-    #configure methods，separated with ';'
-    ExcludeMethods=equals;hash
-    
-    #true/false
-    ExcludePrivateMethod=true
-    
-    #General method execution time threshold in ms
-    ProfilingTimeThreshold=1000
-    
-    #The number of times the method execution time threshold is exceeded in a time slice, valid only when RecorderMode=accurate
-    ProfilingOutThresholdCount=10
-    ```
-
-* Execute command `mvn clean package`
-
-* Run your application
-
-* Performance Statistics
-
-    ```
-    2018-07-01 23:40:24.2 [MyPerf4J] INFO RecorderMaintainer.roundRobinProcessor finished!!! cost: 0ms
-    2018-07-01 23:40:24.3 [MyPerf4J] INFO RecorderMaintainer.backgroundProcessor finished!!! cost: 1ms
-    MyPerf4J Performance Statistics [2018-07-01 23:40:23, 2018-07-01 23:40:24]
-    Api[2/3]                    RPS  Avg(ms)  Min(ms)  Max(ms)   StdDev     Count     TP50     TP90     TP95     TP99    TP999   TP9999  TP99999    TP100
-    UserServiceImpl.getId1  7454181     0.00        0        0     0.00   7454181        0        0        0        0        0        0        0        0
-    UserServiceImpl.getId2  7454180     0.00        0        0     0.00   7454180        0        0        0        0        0        0        0        0
+    MyPerf4J Method Metrics [2018-09-06 19:21:40, 2018-09-06 19:21:45]
+    Method[4]                           RPS  Avg(ms)  Min(ms)  Max(ms)   StdDev     Count     TP50     TP90     TP95     TP99    TP999   TP9999  TP99999    TP100
+    DemoServiceImpl.getId1(long)       1974     0.00        0        0     0.00      9870        0        0        0        0        0        0        0        0
+    DemoServiceImpl.getId2(long)       2995     0.50        0        2     0.01     14975        0        1        2        2        2        2        2        2
+    DemoServiceImplV2.getId1(long)      787     0.00        0        0     0.00      3938        0        0        0        0        0        0        0        0
+    DemoServiceImplV2.getId3(long)     1575     0.50        0        1     0.01      7876        1        1        1        1        1        1        1        1
     ```
     
-## Visual performance indicators
-* Currently MyPerf4J has provided data display using [Grafana Dashboard](https://grafana.com/dashboards/6991)
-![Markdown](https://raw.githubusercontent.com/ThinkpadNC5/Pictures/master/MyPerf4J_Grafana.jpeg)
+### Uninstall
+Remove the following two parameters from the JVM startup parameters and restart to uninstall the tool.
+> -javaagent:/your/path/to/MyPerf4J-ASM.jar
+> -DMyPerf4JPropFile=/your/path/to/myPerf4J.properties
+
+## Issues
+If you encounter any issues or if you have a question, don't hesitate to [create an issue](https://github.com/ThinkpadNC5/MyPerf4J/issues/new/choose) or [send email](mailto:feedback.myperf4j@gmail.com) : )
+
+## Inspired by
+* [Perf4J](https://github.com/perf4j/perf4j)
+* [TProfiler](https://github.com/alibaba/TProfiler)
 
 ## More Information
 For more information about the project, please see [https://github.com/ThinkpadNC5/MyPerf4J/wiki/English-Doc](https://github.com/ThinkpadNC5/MyPerf4J/wiki/English-Doc).

@@ -1,7 +1,7 @@
 package cn.myperf4j.core;
 
 import cn.myperf4j.base.MethodTag;
-import cn.myperf4j.core.util.Logger;
+import cn.myperf4j.base.util.Logger;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class MethodTagMaintainer extends AbstractMethodTagMaintainer {
 
-    static final int MAX_NUM = 1024 * 128;
+    public static final int MAX_NUM = 1024 * 128;
 
     private final AtomicInteger index = new AtomicInteger(0);
 
